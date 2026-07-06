@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>かずとビーズ</title>
+<style>
+  :root { --bead:clamp(26px, 5vmin, 46px); }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent;
+      user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+  html,body { height:100%; overflow:hidden; overscroll-behavior:none; }
+  body {
+    font-family:"Hiragino Maru Gothic ProN","BIZ UDGothic","Yu Gothic",sans-serif;
+    background:#f5efe3;
+    display:flex; flex-direction:column;
+    height:100dvh;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ===== 棚(ステージ選択) ===== */
+  #shelf { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:20px; touch-action:pan-y; }
+  #shelf h1 { font-size:clamp(22px,4vw,32px); color:#6b5334; font-weight:normal; letter-spacing:0.2em; }
+  #shelfsub { font-size:14px; color:#a08d6a; }
+  .work {
+    width:min(480px,88vw); padding:16px 24px;
+    background:#fffdf8; border:2px solid #d9c9a8; border-radius:14px;
+    box-shadow:0 3px 0 #d9c9a8; cursor:pointer;
+    display:flex; align-items:center; gap:16px; position:relative;
+  }
+  .work:active { transform:translateY(2px); box-shadow:0 1px 0 #d9c9a8; }
+  .work .num { font-size:12px; color:#c0ab84; }
+  .work .label { font-size:clamp(17px,3vw,24px); color:#4a3b24; }
+  .work .star { position:absolute; top:8px; right:12px; font-size:18px; }
+
+  /* ===== ゲーム画面 ===== */
+  #game { flex:1; display:none; flex-direction:column; padding:12px; touch-action:none; }
+  #topbar { display:flex; justify-content:space-between; align-items:center; padding:4px 8px 10px; gap:8px; }
+  #backBtn {
+    font-size:clamp(14px,2.4vw,18px); color:#6b5334; background:#fffdf8;
+    border:2px solid #d9c9a8; border-radius:10px; padding:8px 16px; cursor:pointer; flex:none;
+  }
+  #levelName { font-size:clamp(14px,2.4vw,18px); color:#a08d6a; letter-spacing:0.1em; }
+  #deckcount { font-size:14px; color:#a08d6a; flex:none; min-width:90px; text-align:right; }
+
+  #mats { flex:1; display:flex; gap:12px; min-height:0; }
+  .mat {
+    flex:1; border-radius:16px; padding:8px;
+    display:flex; flex-direction:column; min-height:0; align-items:center;
+    background:#fbf7ee; border:3px solid #d9c9a8;
+  }
+  .mat .numeral { font-size:clamp(40px,9vmin,72px); color:#4a3b24; line-height:1.1; flex:none; }
+  .mat .yomi { font-size:clamp(13px,2.4vmin,18px); color:#a08d6a; letter-spacing:0.2em; flex:none; padding-bottom:6px; }
+  .mat .matarea { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:8px; overflow:hidden; padding:4px; width:100%; }
+
+  /* ===== ビーズの棒(横向き・5こずつ2だんまで) ===== */
+  .bar {
+    width:calc(var(--bead)*5 + 36px); min-height:calc(var(--bead)*1.9);
+    border-radius:18px; position:relative; cursor:grab; touch-action:none;
+    background:#ffffff; border:2px solid #e2d6bc; box-shadow:0 2px 5px rgba(90,70,40,.15);
+    display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:center; align-content:center;
+    padding:7px 8px; gap:4px;
+  }
+  .bar .bead {
+    width:var(--bead); height:var(--bead); border-radius:50%;
+    border:1px solid rgba(0,0,0,.22); flex:none;
+  }
+  /* こたえあわせ: 数字バッジが出る */
+  .bar .badge {
+    position:absolute; top:-10px; right:-10px;
+    min-width:26px; height:26px; border-radius:13px; padding:0 6px;
+    background:#6b5334; color:#fff; font-size:16px;
+    display:none; align-items:center; justify-content:center; z-index:2;
+  }
+  .bar.reveal .badge { display:flex; animation:pop .4s ease; }
+  .bar.wiggle { animation:wiggle 1.2s ease-in-out infinite; }
+  @keyframes wiggle {
+    0%,100% { transform:rotate(0deg); }
+    25% { transform:rotate(-4deg) translateY(-2px); }
+    75% { transform:rotate(4deg) translateY(-2px); }
+  }
+
+  #deckrow { flex:none; display:flex; align-items:center; justify-content:center; padding:10px 0 4px; min-height:calc(var(--bead)*3.2); }
+
+  #controls { flex:none; display:flex; justify-content:center; gap:16px; padding:10px 0 4px; min-height:60px; align-items:center; }
+  .ctl {
+    font-size:clamp(15px,2.5vw,19px); color:#4a3b24; background:#fffdf8;
+    border:2px solid #d9c9a8; border-radius:12px; padding:12px 28px; cursor:pointer; letter-spacing:0.08em;
+  }
+  .ctl:active { transform:translateY(2px); }
+  .hidden { display:none !important; }
+
+  #ghost { position:fixed; pointer-events:none; z-index:1000; display:none; }
+
+  /* ===== クリア演出 ===== */
+  #clearOverlay {
+    position:fixed; inset:0; z-index:2000; display:none;
+    align-items:center; justify-content:center; flex-direction:column; gap:20px;
+    background:rgba(255,250,235,.92);
+  }
+  #clearOverlay.show { display:flex; }
+  #clearBadge { font-size:clamp(60px,14vw,110px); animation:pop .6s ease; }
+  #clearText { font-size:clamp(30px,7vw,54px); color:#e0913a; letter-spacing:0.15em; font-weight:bold; animation:pop .6s ease .1s backwards; }
+  #clearStars { font-size:clamp(28px,6vw,44px); animation:pop .6s ease .25s backwards; }
+  #clearBtns { display:flex; gap:16px; animation:pop .6s ease .4s backwards; }
+  .clearbtn {
+    font-size:clamp(17px,3vw,22px); padding:14px 30px; border-radius:14px; cursor:pointer; letter-spacing:0.08em;
+    border:none; box-shadow:0 4px 0 rgba(0,0,0,.15);
+  }
+  .clearbtn:active { transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.15); }
+  #nextBtn { background:#f0a03c; color:#fff; }
+  #homeBtn { background:#fffdf8; color:#6b5334; border:2px solid #d9c9a8; }
+  @keyframes pop { 0%{transform:scale(0);} 70%{transform:scale(1.15);} 100%{transform:scale(1);} }
+
+  .confetti {
+    position:fixed; top:-20px; z-index:1999; pointer-events:none;
+    width:12px; height:12px; opacity:.95;
+    animation:fall linear forwards;
+  }
+  @keyframes fall { to { transform:translateY(110vh) rotate(720deg); } }
+</style>
+</head>
+<body>
+
+<div id="shelf">
+  <h1>かずとビーズ</h1>
+  <div id="shelfsub">ビーズをかぞえて おなじかずの ところへ</div>
+</div>
+
+<div id="game">
+  <div id="topbar">
+    <button id="backBtn">← たなにもどる</button>
+    <span id="levelName"></span>
+    <span id="deckcount"></span>
+  </div>
+  <div id="mats"></div>
+  <div id="deckrow"></div>
+  <div id="controls">
+    <button id="flipBtn" class="ctl hidden">こたえあわせ</button>
+  </div>
+</div>
+
+<div id="ghost"></div>
+
+<div id="clearOverlay">
+  <div id="clearBadge">🏆</div>
+  <div id="clearText">ステージクリア！</div>
+  <div id="clearStars">⭐⭐⭐</div>
+  <div id="clearBtns">
+    <button id="nextBtn" class="clearbtn">つぎのステージ ▶</button>
+    <button id="homeBtn" class="clearbtn">たなにもどる</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ステージ: 出てくる数の範囲 */
+const LEVELS = [
+  { name:"1・2・3", range:[1,3] },
+  { name:"1〜5",    range:[1,5] },
+  { name:"4〜7",    range:[4,7] },
+  { name:"5〜10",   range:[5,10] },
+  { name:"1〜10",   range:[1,10] }
+];
+
+/* モンテッソーリの色ビーズ(1〜10の伝統色) */
+const BEAD_COLORS = ["","#e63946","#2a9d4e","#f4a0b9","#f2d24d","#7ec8e3","#9b5de5","#f8f9fa","#8d5a3a","#1d3a8f","#d4af37"];
+const YOMI = ["","いち","に","さん","よん","ご","ろく","なな","はち","きゅう","じゅう"];
+
+/* ================= クリア記録 ================= */
+let cleared = new Set();
+try {
+  const s = localStorage.getItem("kazu-clear");
+  if (s) cleared = new Set(JSON.parse(s));
+} catch(e) {}
+function saveCleared() {
+  try { localStorage.setItem("kazu-clear", JSON.stringify([...cleared])); } catch(e) {}
+}
+
+/* ================= 棚 ================= */
+const shelf = document.getElementById("shelf");
+const game  = document.getElementById("game");
+
+function buildShelf() {
+  shelf.querySelectorAll(".work").forEach(w => w.remove());
+  LEVELS.forEach((lv, i) => {
+    const btn = document.createElement("div");
+    btn.className = "work";
+    btn.innerHTML = `<span><div class="num">すてーじ ${i+1}</div>
+      <div class="label">かず ${lv.name}</div></span>
+      ${cleared.has(i) ? '<span class="star">⭐</span>' : ''}`;
+    btn.addEventListener("pointerup", () => startLevel(i));
+    shelf.appendChild(btn);
+  });
+}
+buildShelf();
+
+/* ================= ゲーム状態 ================= */
+let levelIdx = 0;
+let deck = [];       // 未配置のビーズ棒(数値の配列)
+let revealed = false;
+let done = false;    // クリア演出の二重発火防止
+
+const matsEl   = document.getElementById("mats");
+const deckrow  = document.getElementById("deckrow");
+const flipBtn  = document.getElementById("flipBtn");
+const deckcount= document.getElementById("deckcount");
+const levelName= document.getElementById("levelName");
+
+document.getElementById("backBtn").addEventListener("pointerup", goShelf);
+flipBtn.addEventListener("pointerup", revealAll);
+document.getElementById("nextBtn").addEventListener("pointerup", () => {
+  hideClear();
+  startLevel((levelIdx + 1) % LEVELS.length);
+});
+document.getElementById("homeBtn").addEventListener("pointerup", () => {
+  hideClear();
+  goShelf();
+});
+
+function goShelf() {
+  game.style.display = "none";
+  buildShelf();
+  shelf.style.display = "flex";
+}
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function startLevel(i) {
+  levelIdx = i;
+  const [lo, hi] = LEVELS[i].range;
+  revealed = false;
+  done = false;
+  levelName.textContent = `${i+1}. かず ${LEVELS[i].name}`;
+
+  // 範囲からランダムに3つの数を選ぶ(毎回変わる)
+  const pool = [];
+  for (let n = lo; n <= hi; n++) pool.push(n);
+  shuffle(pool);
+  const nums = pool.slice(0, 3).sort((a,b) => a-b);
+
+  // マット(数字カード)
+  matsEl.innerHTML = "";
+  nums.forEach(n => {
+    const m = document.createElement("div");
+    m.className = "mat";
+    m.dataset.num = String(n);
+    m.innerHTML = `<div class="numeral">${n}</div>
+      <div class="yomi">${YOMI[n]}</div>
+      <div class="matarea"></div>`;
+    matsEl.appendChild(m);
+  });
+
+  // ビーズ棒: 各数につき2本(合計6本)
+  deck = [];
+  nums.forEach(n => { deck.push(n); deck.push(n); });
+  shuffle(deck);
+
+  flipBtn.classList.add("hidden");
+  shelf.style.display = "none";
+  game.style.display = "flex";
+  showNextBar();
+}
+
+function makeBarEl(n) {
+  const b = document.createElement("div");
+  b.className = "bar";
+  let beads = "";
+  for (let k = 0; k < n; k++) {
+    beads += `<div class="bead" style="background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.85), ${BEAD_COLORS[n]} 60%)"></div>`;
+  }
+  b.innerHTML = beads + `<div class="badge">${n}</div>`;
+  b._num = n;
+  return b;
+}
+
+function showNextBar() {
+  deckrow.innerHTML = "";
+  deckcount.textContent = deck.length > 0 ? `のこり ${deck.length} ほん` : "";
+  if (deck.length === 0) {
+    if (!revealed) flipBtn.classList.remove("hidden");
+    return;
+  }
+  const el = makeBarEl(deck[0]);
+  enableDrag(el, true);
+  deckrow.appendChild(el);
+}
+
+/* ================= ドラッグ ================= */
+const ghost = document.getElementById("ghost");
+let dragEl = null;
+let gW = 20, gH = 100;
+
+function enableDrag(el, fromDeck) {
+  el.addEventListener("pointerdown", ev => {
+    ev.preventDefault();
+    dragEl = el;
+    el._fromDeck = fromDeck;
+    startGhost(el, ev);
+  });
+}
+
+function startGhost(el, ev) {
+  const r = el.getBoundingClientRect();
+  gW = r.width / 2;
+  gH = r.height / 2;
+  ghost.innerHTML = "";
+  const clone = el.cloneNode(true);
+  clone.style.width = r.width + "px";
+  clone.style.height = r.height + "px";
+  clone.style.opacity = ".85";
+  ghost.appendChild(clone);
+  ghost.style.display = "block";
+  moveGhost(ev);
+  el.style.visibility = "hidden";
+}
+
+function moveGhost(ev) {
+  ghost.style.left = (ev.clientX - gW) + "px";
+  ghost.style.top  = (ev.clientY - gH) + "px";
+}
+
+window.addEventListener("pointermove", ev => {
+  if (dragEl) moveGhost(ev);
+});
+
+window.addEventListener("pointerup", ev => {
+  if (!dragEl) return;
+  const el = dragEl;
+  dragEl = null;
+  ghost.style.display = "none";
+  el.style.visibility = "";
+
+  const target = document.elementFromPoint(ev.clientX, ev.clientY);
+  const mat = target ? target.closest(".mat") : null;
+
+  if (mat) {
+    const placedEl = makeBarEl(el._num);
+    if (revealed) placedEl.classList.add("reveal");
+    enableDrag(placedEl, false);
+    mat.querySelector(".matarea").appendChild(placedEl);
+
+    if (el._fromDeck) {
+      deck.shift();
+      showNextBar();
+    } else {
+      el.remove();
+      if (revealed) checkAllCorrect(true);
+    }
+  }
+});
+
+/* ================= 答え合わせ(自己訂正) ================= */
+function revealAll() {
+  revealed = true;
+  flipBtn.classList.add("hidden");
+  document.querySelectorAll(".mat .bar").forEach(b => b.classList.add("reveal"));
+  setTimeout(() => checkAllCorrect(false), 700);
+  setTimeout(() => checkAllCorrect(true), 2500);
+}
+
+function checkAllCorrect(withWiggle) {
+  let allOk = true;
+  document.querySelectorAll(".mat").forEach(mat => {
+    mat.querySelectorAll(".bar").forEach(b => {
+      const ok = b._num === Number(mat.dataset.num);
+      if (!ok) allOk = false;
+      if (withWiggle) b.classList.toggle("wiggle", !ok);
+      else if (ok) b.classList.remove("wiggle");
+    });
+  });
+  if (allOk) {
+    if (done) return; // すでにクリア済みなら二度と鳴らさない
+    done = true;
+    document.querySelectorAll(".bar.wiggle").forEach(b => b.classList.remove("wiggle"));
+    celebrate();
+  }
+}
+
+/* ================= クリア演出 ================= */
+const overlay = document.getElementById("clearOverlay");
+
+function celebrate() {
+  cleared.add(levelIdx);
+  saveCleared();
+  overlay.classList.add("show");
+  spawnConfetti();
+  playFanfare();
+}
+
+function hideClear() {
+  overlay.classList.remove("show");
+  document.querySelectorAll(".confetti").forEach(c => c.remove());
+}
+
+function spawnConfetti() {
+  const colors = ["#e05a5a","#f0a03c","#f2d24d","#6cbf5e","#5a8de0","#b06ac9","#f28bb4"];
+  for (let i = 0; i < 80; i++) {
+    const p = document.createElement("div");
+    p.className = "confetti";
+    p.style.left = Math.random() * 100 + "vw";
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.width  = (8 + Math.random() * 8) + "px";
+    p.style.height = (8 + Math.random() * 8) + "px";
+    p.style.borderRadius = Math.random() < 0.5 ? "50%" : "2px";
+    p.style.animationDuration = (1.8 + Math.random() * 2) + "s";
+    p.style.animationDelay = (Math.random() * 0.8) + "s";
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 5000);
+  }
+}
+
+function playFanfare() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "triangle";
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.001, ctx.currentTime + i * 0.15);
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + i * 0.15 + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + (i === notes.length-1 ? 0.7 : 0.25));
+      o.connect(g).connect(ctx.destination);
+      o.start(ctx.currentTime + i * 0.15);
+      o.stop(ctx.currentTime + i * 0.15 + 0.8);
+    });
+  } catch(e) {}
+}
+</script>
+</body>
+</html>
